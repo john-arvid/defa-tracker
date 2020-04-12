@@ -1,0 +1,4 @@
+username = "email@domain.com"
+password = "enoughsecure"
+url = 'https://api.mydefa.com/link/Link.svc/v1/units/123456/rpc'
+payload = {"jsonrpc":"2.0","method":"ZigBee.sendCommandBundle","id":"FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF","params":{"readAttributesCmds":[{"endpoint":12,"order":0,"cluster":12345,"profile":12345,"attributes":[0,1]}]}}

@@ -1,0 +1,4 @@
+A script that sends requests to the Defa API getting the location and sends the location to traccar in homeassistant.
+
+I traced the network package from the IOS app to be able to reconstruct my requests. Needs to be done for each user since there are some unique identifiers.
+The example file shows how the payload and url is built, and this needs to be changed for each user.
