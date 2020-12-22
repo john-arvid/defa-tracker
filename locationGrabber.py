@@ -99,7 +99,7 @@ def calculate_initial_compass_bearing(pointA, pointB):
 
 def send_error(error_text):
 	print(error_text)
-	time.sleep(30)
+	time.sleep(3)
 	return
 
 #WGS 84
@@ -124,54 +124,29 @@ error = 0
 
 cookie = dict(JSESSIONID='xxx')
 headers = {'Content-Type': 'application/json', 'User-Agent': 'DEFALink-iOS/6.6.23'}
-regex = r"\d+(?=,\"type\":43})"
+regexLocation = r"\d+(?=,\"type\":43})"
+regexAuth = r"(?<=JSESSIONID=)[A-Z0-9]*"
+regexSpeed = r"\d+(?=,\"type\":32})"
 
-while (True):
+try:
+	while (True):
 
-	# Reset error state
-	error = 0
+		# Reset error state
+		error = 0
 
-	# Set time variables
-	if (this_time != 0):
-		last_time = this_time
+		# Set time variables
+		if (this_time != 0):
+			last_time = this_time
 
-	this_time = datetime.datetime.now()
+		this_time = datetime.datetime.now()
 
-	# Set variable so we have two different points
-	if (longitude != 0):
-		last_longitude = longitude
-		last_latitude = latitude
-		#if (something something): error = 1
+		# Set variable so we have two different points
+		if (longitude != 0):
+			last_longitude = longitude
+			last_latitude = latitude
+			#if (something something): error = 1
 
-	# Get the response from defa server
-	try:
-		response = requests.post(url, headers=headers, cookies=cookie, json=payload)
-	except:
-		error = 1
-		error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Something wrong with defa url"
-		send_error(error_text)
-		response.status_code == 420
-
-	# Get the session id the first time or when the session id has changed
-	if (longitude == 0 or response.status_code != 200) and not error:
-		headers2 = {'Content-Type':'application/json','User-Agent':'DEFALink-iOS/6.6.23'}
-		payload2 = {"username":username,"password":password,"clientVer":"6.6.23","clientType":"defalink_ios"}
-		url2 = 'https://api.mydefa.com/link/LoginService.svc/login'
-		regex2 = r"(?<=JSESSIONID=)[A-Z0-9]*"
-
-		try:
-			response2 = requests.post(url2, headers=headers2, json=payload2)
-		except:
-			error = 1
-			error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Something wrong with defa url"
-			send_error(error_text)
-		
-		authcookie = str(response2.headers)
-		#print(authcookie)
-		matches = re.findall(regex2, authcookie)
-		authcookie = matches[0]
-		cookie = dict(JSESSIONID=authcookie)
-
+		# Get the response from defa server
 		try:
 			response = requests.post(url, headers=headers, cookies=cookie, json=payload)
 		except:
@@ -180,78 +155,139 @@ while (True):
 			send_error(error_text)
 			response.status_code == 420
 
-	#print(response.status_code)
+		# Get the session id the first time or when the session id has changed
+		if (longitude == 0 or response.status_code != 200) and not error:
+			headers2 = {'Content-Type':'application/json','User-Agent':'DEFALink-iOS/6.6.23'}
+			payload2 = {"username":username,"password":password,"clientVer":"6.6.23","clientType":"defalink_ios"}
+			url2 = 'https://api.mydefa.com/link/LoginService.svc/login'
 
-	text = response.text
+			try:
+				response2 = requests.post(url2, headers=headers2, json=payload2)
+			except:
+				error = 1
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Something wrong with defa url"
+				send_error(error_text)
+			
+			authcookie = str(response2.headers)
+			#print(authcookie)
+			matchesAuth = re.findall(regexAuth, authcookie)
+			authcookie = matchesAuth[0]
+			cookie = dict(JSESSIONID=authcookie)
 
-	#print(text)
-	if (not error):
+			try:
+				response = requests.post(url, headers=headers, cookies=cookie, json=payload)
+			except:
+				error = 1
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Something wrong with defa url"
+				send_error(error_text)
+				response.status_code == 420
 
-		try:
-			matches = re.findall(regex, text)
+		#print(response.status_code)
 
-		except:
-			error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "No JSSESION found in the server response"
-			send_error(error_text)
-			print(text)
-			error = 1
+		text = response.text
 
-		try:
-			latitude = matches[0]
-			longitude = matches[1]
-		except:
-			error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Lat and long not found"
-			send_error(error_text)
-			print(text)
-			error = 1
+		#print(text)
+		if (not error):
 
-		temp = abs(int(latitude)) % 10000000
-		latitude = str(int(latitude) // 10000000) + "." + str(temp)
-		latitude = float(latitude)
+			# Check if response is ok, will fail if regex is not succesfull
+			try:
+				matchesLocation = re.findall(regexLocation, text)
 
-		temp = abs(int(longitude)) % 10000000
-		longitude = str(int(longitude) // 10000000) + "." + str(temp)
-		longitude = float(longitude)
+			except:
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "No JSSESION found in the server response"
+				send_error(error_text)
+				print(text)
+				error = 1
+		
+		if (not error):
+			# Find location
+			try:
+				latitude = matchesLocation[0]
+				longitude = matchesLocation[1]
+			except:
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Lat and long not found"
+				send_error(error_text)
+				print(text)
+				error = 1
+		
+		if (not error):
+			# Get speed from defa
+			try:
+				matchesSpeed = re.findall(regexSpeed, text)
+				speed = int(matchesSpeed[1])
+				# Convert to knots because of traccar
+				speed = round(speed/1.852,2)
+				#print(speed)
+			except:
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Speed not found"
+				send_error(error_text)
+				print(text)
+				error = 1
+		
+		if (not error):
+			# Convert lat and long from int to float coordinates
+			temp = abs(int(latitude)) % 10000000
+			latitude = str(int(latitude) // 10000000) + "." + str(temp)
+			latitude = float(latitude)
 
-		latSeconds = latitude * 3600
-		latDegrees = latSeconds / 3600
-		latSeconds = abs(latSeconds % 3600)
-		latMinutes = latSeconds / 60
-		latSeconds %= 60
-		latSeconds = round(latSeconds,1)
-		latMinutes = int(latMinutes)
-		latDegrees = int(latDegrees)
+			temp = abs(int(longitude)) % 10000000
+			longitude = str(int(longitude) // 10000000) + "." + str(temp)
+			longitude = float(longitude)
+			
+			""" # Create seconds, degrees and minutes for google maps
+			latSeconds = latitude * 3600
+			latDegrees = latSeconds / 3600
+			latSeconds = abs(latSeconds % 3600)
+			latMinutes = latSeconds / 60
+			latSeconds %= 60
+			latSeconds = round(latSeconds,1)
+			latMinutes = int(latMinutes)
+			latDegrees = int(latDegrees)
 
-		longSeconds = longitude * 3600
-		longDegrees = longSeconds / 3600
-		longSeconds = abs(longSeconds % 3600)
-		longMinutes = longSeconds / 60
-		longSeconds %= 60
-		longSeconds = round(longSeconds,1)
-		longMinutes = int(longMinutes)
-		longDegrees = int(longDegrees)
+			longSeconds = longitude * 3600
+			longDegrees = longSeconds / 3600
+			longSeconds = abs(longSeconds % 3600)
+			longMinutes = longSeconds / 60
+			longSeconds %= 60
+			longSeconds = round(longSeconds,1)
+			longMinutes = int(longMinutes)
+			longDegrees = int(longDegrees)
 
-	#mapURL = ("https://www.google.com/maps/place/" + str(latDegrees) + "%C2%B0" + str(latMinutes) + "'" + str(latSeconds) + "%22" + 'N+' + str(longDegrees) + "%C2%B0" + str(longMinutes) + "'" + str(longSeconds) + '%22' + 'E/@' + str(latitude) + "," + str(longitude) + ",17z")
+		#mapURL = ("https://www.google.com/maps/place/" + str(latDegrees) + "%C2%B0" + str(latMinutes) + "'" + str(latSeconds) + "%22" + 'N+' + str(longDegrees) + "%C2%B0" + str(longMinutes) + "'" + str(longSeconds) + '%22' + 'E/@' + str(latitude) + "," + str(longitude) + ",17z")
 
-	#webbrowser.open_new(mapURL)
-
-	if (last_latitude != 0 and not error):
-		last_point = [last_latitude,last_longitude]
-		this_point = [latitude, longitude]
-		distance = vincenty_inverse(last_point,this_point)
-		time_difference = this_time - last_time
-		# This function needs tuple, but I am using arrays, so I convert them before sending it
-		bearing = calculate_initial_compass_bearing(tuple(last_point), tuple(this_point))
-		#print(bearing)
-		speed = round(((distance/time_difference.total_seconds())*3600)/1.852,2)
-		unixtime = datetime.datetime.utcnow().timestamp()
-		try:
-			response3 = requests.post(f"http://192.168.1.20:18582/?id=48945893489&lat={latitude}&lon={longitude}&timestamp={this_time}&speed={speed}&bearing={bearing}")
-		except:
-			error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Traccar not available"
-			send_error(error_text)
-			print(response3.status_code)
-			print(response3.text)
-	#print(response.status_code)
+		#webbrowser.open_new(mapURL) """
 
 
+		# Calculate and send information to traccar
+		if (last_latitude != 0 and not error and speed !=0):
+			last_point = [last_latitude,last_longitude]
+			this_point = [latitude, longitude]
+			# This function needs tuple, but I am using arrays, so I convert them before sending it
+			bearing = calculate_initial_compass_bearing(tuple(last_point), tuple(this_point))
+			
+			""" # Calculate speed, will try with defa instead of this for now
+			time_difference = this_time - last_time
+			distance = vincenty_inverse(last_point,this_point)
+			speed = round(((distance/time_difference.total_seconds())*3600)/1.852,2) """
+			try:
+				response3 = requests.post(f"http://192.168.1.20:18582/?id=48945893489&lat={latitude}&lon={longitude}&timestamp={this_time}&speed={speed}&bearing={bearing}")
+				traccarReport = this_time.strftime("%Y-%m-%d-") + "traccarreport.tmp.csv"
+				with open(traccarReport, 'a', encoding= 'utf-8') as report:
+					report.write(this_time.strftime("%Y.%m.%d,%H:%M:%S,")+str(latitude)+","+str(longitude)+","+str(this_time)+","+str(speed)+","+str(bearing)+"\n")
+			except:
+				error_text = this_time.strftime("%Y.%m.%d %H:%M:%S ") + "Traccar not available"
+				send_error(error_text)
+				print(response3.status_code)
+				print(response3.text)
+		#print(response.status_code)
+		if (not error):
+			reportName = this_time.strftime("%Y-%m-%d-") + "report.tmp.csv"
+			rawReportName = this_time.strftime("%Y-%m-%d-") + "rawreport.tmp.csv"
+			rawTrimmedText = text[202:-116]
+			with open(reportName, 'a', encoding= 'utf-8') as report:
+				report.write(this_time.strftime("%Y.%m.%d,%H:%M:%S,")+str(latitude)+","+str(longitude)+"\n")
+			with open(rawReportName, 'a', encoding= 'utf-8') as report:
+				report.write(this_time.strftime("%Y.%m.%d,%H:%M:%S,")+text+"\n")
+
+except KeyboardInterrupt:
+	print('interupted')
